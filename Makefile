@@ -7,20 +7,43 @@
 #    make run           Run the application
 #    make build-mac     Build macOS .app bundle + .dmg
 #    make build-linux   Build Linux binary + AppImage
-#    make build-win     Build Windows .exe (run from Windows)
+#    make build-win     Build Windows .exe (auto-detects .venv)
 #    make clean         Remove build artifacts
+#
+#  Windows: Works with CMD, PowerShell, Git Bash, MSYS2, etc.
+#           Automatically uses .venv if available, otherwise global Python
 #
 # ══════════════════════════════════════════════════════════════════
 
 APP_NAME     := OpenSCP
 VERSION      := 1.0.0
 ENTRY        := main.py
-PYTHON       := python3
-PIP          := pip3
-PYINSTALLER  := $(PYTHON) -m PyInstaller
 
-# Platform detection
+# Platform detection - detects Windows, MinGW, MSYS, Cygwin
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+
+# Check if we're on Windows (including Git Bash, MSYS, MinGW, Cygwin)
+IS_WINDOWS := $(if $(or $(findstring Windows,$(UNAME_S)),$(findstring MINGW,$(UNAME_S)),$(findstring MSYS,$(UNAME_S)),$(findstring CYGWIN,$(UNAME_S))),yes,no)
+
+# Default Python commands
+ifeq ($(IS_WINDOWS),yes)
+  # Check for .venv using test command (works in Git Bash/MSYS)
+  VENV_EXISTS := $(shell test -d .venv && echo yes)
+  
+  # Prefer .venv if it exists, otherwise use global Python
+  ifeq ($(VENV_EXISTS),yes)
+    PYTHON := .venv/Scripts/python.exe
+    PIP    := .venv/Scripts/pip.exe
+  else
+    PYTHON := python
+    PIP    := pip
+  endif
+else
+  PYTHON := python3
+  PIP    := pip3
+endif
+
+PYINSTALLER  := $(PYTHON) -m PyInstaller
 
 # Common PyInstaller args
 COMMON_ARGS := \
@@ -33,7 +56,7 @@ COMMON_ARGS := \
 	--noconfirm
 
 # Data paths (use : on Unix, ; on Windows)
-ifeq ($(UNAME_S),Windows)
+ifeq ($(IS_WINDOWS),yes)
   DATA_SEP := ;
 else
   DATA_SEP := :
@@ -50,6 +73,7 @@ DATA_ARGS := \
 .PHONY: install run clean lint
 
 install:
+	@echo Instalando dependencias...
 	$(PIP) install PyQt6 paramiko cryptography pyinstaller Pillow
 
 run:
@@ -57,7 +81,7 @@ run:
 
 clean:
 	rm -rf build/ dist/ *.spec __pycache__ .eggs *.egg-info
-	rm -f $(APP_NAME).dmg
+	rm -f $(APP_NAME).dmg icon.png
 	rm -rf $(APP_NAME).AppDir
 
 lint:
@@ -154,16 +178,62 @@ appimage: build-linux
 #  Windows — .exe (run this from Windows cmd/powershell)
 # ──────────────────────────────────────────────────────────────────
 
-.PHONY: build-win
+.PHONY: build-win build-win-venv build-win-global
 
+# Smart build: uses .venv if available, otherwise global Python
+# Use build-win-venv or build-win-global to override
 build-win:
+ifeq ($(IS_WINDOWS),yes)
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════════="
+	@echo " OpenSCP - Build para Windows"
+	@echo "═══════════════════════════════════════════════════════════="
+ifeq ($(VENV_EXISTS),yes)
+	@echo " Usando Python do ambiente virtual (.venv)"
+else
+	@echo " Usando Python global do sistema"
+endif
+	@echo "═══════════════════════════════════════════════════════════="
+	@echo ""
+endif
 	$(PYINSTALLER) $(COMMON_ARGS) \
 		--windowed \
 		--add-data "themes;themes" \
 		--add-data "locales;locales" \
 		$(ENTRY)
-	@echo.
-	@echo ✅  Windows build complete: dist\$(APP_NAME)\$(APP_NAME).exe
+ifeq ($(IS_WINDOWS),yes)
+	@echo ""
+	@echo "✅ Build completo: dist/$(APP_NAME)/$(APP_NAME).exe"
+else
+	@echo ""
+	@echo "✅  Windows build complete: dist/$(APP_NAME)/$(APP_NAME).exe"
+endif
+
+# Explicit build with .venv Python
+build-win-venv:
+	@echo ""
+	@echo "Usando Python do ambiente virtual (.venv)..."
+	@echo ""
+	.venv/Scripts/python.exe -m PyInstaller $(COMMON_ARGS) \
+		--windowed \
+		--add-data "themes;themes" \
+		--add-data "locales;locales" \
+	$(ENTRY)
+	@echo ""
+	@echo "✅ Build completo: dist/$(APP_NAME)/$(APP_NAME).exe"
+
+# Explicit build with global Python
+build-win-global:
+	@echo ""
+	@echo "Usando Python global do sistema..."
+	@echo ""
+	python -m PyInstaller $(COMMON_ARGS) \
+		--windowed \
+		--add-data "themes;themes" \
+		--add-data "locales;locales" \
+	$(ENTRY)
+	@echo ""
+	@echo "✅ Build completo: dist/$(APP_NAME)/$(APP_NAME).exe"
 
 # ──────────────────────────────────────────────────────────────────
 #  Help
@@ -186,7 +256,9 @@ help:
 	@echo "  make build-linux   Build Linux onefile binary"
 	@echo "  make appimage      Build Linux AppImage"
 	@echo ""
-	@echo "  make build-win     Build Windows .exe (run on Windows)"
+	@echo "  make build-win          Build Windows .exe (auto-detecta .venv)"
+	@echo "  make build-win-venv     Build Windows .exe (força uso do .venv)"
+	@echo "  make build-win-global   Build Windows .exe (força Python global)"
 	@echo ""
 	@echo "  make clean         Remove build artifacts"
 	@echo ""
