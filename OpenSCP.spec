@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['openscp/main.py'],
     pathex=[],
     binaries=[],
-    datas=[('themes', 'themes'), ('locales', 'locales')],
+    datas=[('resources/themes', 'resources/themes'), ('resources/locales', 'resources/locales')],
     hiddenimports=['paramiko', 'cryptography', 'cffi', 'nacl'],
     hookspath=[],
     hooksconfig={},
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['icon/OpenSCPIcon.jpg'],
+    icon=['resources/icon/OpenSCPIcon.jpg'],
 )
 coll = COLLECT(
     exe,
@@ -46,6 +46,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='OpenSCP.app',
-    icon='icon/OpenSCPIcon.jpg',
+    icon='resources/icon/OpenSCPIcon.jpg',
     bundle_identifier='com.openscp.app',
 )
